@@ -244,6 +244,7 @@ export default function PeopleBoard() {
   const [relationship, setRelationship] =
     useState<RelationshipKind>("child");
   const [relativeId, setRelativeId] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const inputId = useId();
   const selectId = useId();
@@ -267,14 +268,16 @@ export default function PeopleBoard() {
   }, [fitToView, layout.units.length]);
 
   useEffect(() => {
-    if (!dialogOpen) return;
+    if (!dialogOpen && pendingDeleteId === null) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key !== "Escape") return;
+      if (dialogOpen) {
         setDialogOpen(false);
         setName("");
         setError("");
       }
+      setPendingDeleteId(null);
     };
 
     const previousOverflow = document.body.style.overflow;
@@ -285,7 +288,7 @@ export default function PeopleBoard() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [dialogOpen]);
+  }, [dialogOpen, pendingDeleteId]);
 
   const openDialog = () => {
     setName("");
@@ -322,7 +325,13 @@ export default function PeopleBoard() {
   };
 
   const handleRemove = (personId: string) => {
-    removeStoredPerson(personId);
+    setPendingDeleteId(personId);
+  };
+
+  const confirmRemove = () => {
+    if (!pendingDeleteId) return;
+    removeStoredPerson(pendingDeleteId);
+    setPendingDeleteId(null);
   };
 
   const countLabel =
@@ -337,6 +346,18 @@ export default function PeopleBoard() {
       : relationship === "partner"
         ? `${relativeName ?? "They"} will appear side by side as partners.`
         : `They will appear above ${relativeName ?? "this person"} as a parent.`;
+
+  const pendingPerson = pendingDeleteId
+    ? peopleById.get(pendingDeleteId)
+    : undefined;
+  const pendingChildren = pendingPerson
+    ? people.filter((person) =>
+        person.parentIds.includes(pendingPerson.id),
+      )
+    : [];
+  const pendingPartnerCount = pendingPerson
+    ? pendingPerson.partnerIds.filter((id) => peopleById.has(id)).length
+    : 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -717,6 +738,78 @@ export default function PeopleBoard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {pendingPerson && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+          <button
+            type="button"
+            aria-label="Close dialog"
+            onClick={() => setPendingDeleteId(null)}
+            className="absolute inset-0 cursor-default bg-[#15261e]/50 backdrop-blur-[2px]"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-person-title"
+            aria-describedby="remove-person-desc"
+            className="animate-rise relative z-10 w-full rounded-t-3xl bg-[#fbf8f1] px-6 pb-6 pt-5 shadow-[0_30px_90px_rgba(21,38,30,0.35)] sm:max-w-sm sm:rounded-3xl"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#f6e9e2] text-[#a35a45]">
+                <XIcon className="h-4 w-4" />
+              </span>
+              <div>
+                <h2
+                  id="remove-person-title"
+                  className="font-display text-xl tracking-tight text-[#2b261f]"
+                >
+                  Remove {pendingPerson.name}?
+                </h2>
+                <p
+                  id="remove-person-desc"
+                  className="mt-1.5 text-xs leading-relaxed text-[#8a7d68]"
+                >
+                  {pendingChildren.length > 0
+                    ? `${pendingPerson.name} is a parent of ${
+                        pendingChildren.length
+                      } ${
+                        pendingChildren.length === 1 ? "person" : "people"
+                      } on the tree. Removing them will unlink ${
+                        pendingChildren.length === 1
+                          ? "that child"
+                          : "those children"
+                      }.`
+                    : `${pendingPerson.name} will be removed from the family tree.`}
+                  {pendingPartnerCount > 0
+                    ? ` ${pendingPartnerCount} partner ${
+                        pendingPartnerCount === 1 ? "link" : "links"
+                      } will also be removed.`
+                    : ""}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-[#e9dfcd] pt-4">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPendingDeleteId(null)}
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#6f6453] transition hover:bg-[#efe7d8] hover:text-[#3d362b]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemove}
+                className="rounded-xl bg-[#a35a45] px-5 py-2.5 text-sm font-semibold text-[#fbf7ec] shadow-sm transition hover:bg-[#8e4b39] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a35a45]/40 focus-visible:ring-offset-2"
+              >
+                Remove
+              </button>
+            </div>
           </div>
         </div>
       )}
