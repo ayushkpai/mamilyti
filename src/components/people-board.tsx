@@ -13,6 +13,7 @@ import {
 import {
   addPerson,
   removePerson as removeStoredPerson,
+  renamePerson as renameStoredPerson,
   useHydrated,
   usePeople,
   type Person,
@@ -98,6 +99,24 @@ function XIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
       className={className}
     >
       <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+function PencilIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );
 }
@@ -191,15 +210,23 @@ type PersonNodeProps = {
   y: number;
   tone: string;
   onRemove: (personId: string) => void;
+  onEdit: (person: Person) => void;
 };
 
-function PersonNode({ person, x, y, tone, onRemove }: PersonNodeProps) {
+function PersonNode({
+  person,
+  x,
+  y,
+  tone,
+  onRemove,
+  onEdit,
+}: PersonNodeProps) {
   return (
     <div
       className="group absolute z-10"
       style={{ left: x, top: y, width: CARD_WIDTH, height: CARD_HEIGHT }}
     >
-      <div className="relative flex h-full items-center gap-3 rounded-2xl border border-[#e3d8c5] bg-[#fffdf8] px-4 pr-9 shadow-[0_4px_16px_rgba(62,50,31,0.07)] transition duration-200 hover:border-[#cdbfa7] hover:shadow-[0_10px_24px_rgba(62,50,31,0.13)]">
+      <div className="relative flex h-full items-center gap-3 rounded-2xl border border-[#e3d8c5] bg-[#fffdf8] px-4 pr-11 shadow-[0_4px_16px_rgba(62,50,31,0.07)] transition duration-200 hover:border-[#cdbfa7] hover:shadow-[0_10px_24px_rgba(62,50,31,0.13)]">
         <span
           className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br ${tone} font-display text-[11px] font-semibold tracking-wide text-white ring-1 ring-black/10`}
         >
@@ -208,15 +235,26 @@ function PersonNode({ person, x, y, tone, onRemove }: PersonNodeProps) {
         <p className="line-clamp-2 break-words font-display text-[16px] leading-tight text-[#2b261f]">
           {person.name}
         </p>
-        <button
-          type="button"
-          onClick={() => onRemove(person.id)}
-          aria-label={`Remove ${person.name}`}
-          title={`Remove ${person.name}`}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-[#b1a48f] opacity-60 transition hover:bg-[#f6e9e2] hover:text-[#a35a45] focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b3674f]/40 sm:opacity-0 sm:group-hover:opacity-100"
-        >
-          <XIcon />
-        </button>
+        <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 flex-col gap-0.5 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+          <button
+            type="button"
+            onClick={() => onEdit(person)}
+            aria-label={`Edit ${person.name}`}
+            title={`Edit ${person.name}`}
+            className="rounded-full p-1.5 text-[#b1a48f] transition hover:bg-[#efe7d8] hover:text-[#3d362b] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6f8f72]/40"
+          >
+            <PencilIcon className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onRemove(person.id)}
+            aria-label={`Remove ${person.name}`}
+            title={`Remove ${person.name}`}
+            className="rounded-full p-1.5 text-[#b1a48f] transition hover:bg-[#f6e9e2] hover:text-[#a35a45] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b3674f]/40"
+          >
+            <XIcon className="h-3 w-3" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -245,9 +283,13 @@ export default function PeopleBoard() {
     useState<RelationshipKind>("child");
   const [relativeId, setRelativeId] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editError, setEditError] = useState("");
   const [zoom, setZoom] = useState(1);
   const inputId = useId();
   const selectId = useId();
+  const editInputId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
   const fittedOnce = useRef(false);
 
@@ -268,7 +310,7 @@ export default function PeopleBoard() {
   }, [fitToView, layout.units.length]);
 
   useEffect(() => {
-    if (!dialogOpen && pendingDeleteId === null) return;
+    if (!dialogOpen && pendingDeleteId === null && editingId === null) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -277,6 +319,9 @@ export default function PeopleBoard() {
         setName("");
         setError("");
       }
+      setEditingId(null);
+      setEditName("");
+      setEditError("");
       setPendingDeleteId(null);
     };
 
@@ -288,7 +333,7 @@ export default function PeopleBoard() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [dialogOpen, pendingDeleteId]);
+  }, [dialogOpen, editingId, pendingDeleteId]);
 
   const openDialog = () => {
     setName("");
@@ -334,6 +379,31 @@ export default function PeopleBoard() {
     setPendingDeleteId(null);
   };
 
+  const openEdit = (person: Person) => {
+    setEditingId(person.id);
+    setEditName(person.name);
+    setEditError("");
+  };
+
+  const closeEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditError("");
+  };
+
+  const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = editName.trim();
+
+    if (!trimmed) {
+      setEditError("Please enter a name.");
+      return;
+    }
+
+    if (editingId) renameStoredPerson(editingId, trimmed);
+    closeEdit();
+  };
+
   const countLabel =
     people.length === 0
       ? "No names yet"
@@ -350,6 +420,7 @@ export default function PeopleBoard() {
   const pendingPerson = pendingDeleteId
     ? peopleById.get(pendingDeleteId)
     : undefined;
+  const editingPerson = editingId ? peopleById.get(editingId) : undefined;
   const pendingChildren = pendingPerson
     ? people.filter((person) =>
         person.parentIds.includes(pendingPerson.id),
@@ -565,6 +636,7 @@ export default function PeopleBoard() {
                               y={unit.y}
                               tone={toneById.get(memberId) ?? avatarTones[0]}
                               onRemove={handleRemove}
+                              onEdit={openEdit}
                             />
                           </Fragment>
                         );
@@ -735,6 +807,86 @@ export default function PeopleBoard() {
                   className="rounded-xl bg-forest px-5 py-2.5 text-sm font-semibold text-[#fbf7ec] shadow-sm transition hover:bg-[#2c4e3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest/40 focus-visible:ring-offset-2"
                 >
                   Add person
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingPerson && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+          <button
+            type="button"
+            aria-label="Close dialog"
+            onClick={closeEdit}
+            className="absolute inset-0 cursor-default bg-[#15261e]/50 backdrop-blur-[2px]"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-person-title"
+            className="animate-rise relative z-10 w-full rounded-t-3xl bg-[#fbf8f1] px-6 pb-6 pt-5 shadow-[0_30px_90px_rgba(21,38,30,0.35)] sm:max-w-md sm:rounded-3xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a29580]">
+                  Edit family member
+                </p>
+                <h2
+                  id="edit-person-title"
+                  className="mt-1 font-display text-2xl tracking-tight text-[#2b261f]"
+                >
+                  Edit name
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeEdit}
+                aria-label="Close"
+                className="-mr-1 rounded-full p-2 text-[#9a8c75] transition hover:bg-[#efe7d8] hover:text-[#3d362b]"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="mt-5">
+              <label htmlFor={editInputId} className={labelClass}>
+                Name
+              </label>
+              <input
+                id={editInputId}
+                autoFocus
+                maxLength={80}
+                value={editName}
+                onChange={(event) => {
+                  setEditName(event.target.value);
+                  if (editError) setEditError("");
+                }}
+                placeholder="e.g. Kamala Devi"
+                className={inputClass}
+              />
+
+              {editError && (
+                <p role="alert" className="mt-2 text-xs text-[#a35a45]">
+                  {editError}
+                </p>
+              )}
+
+              <div className="mt-6 flex items-center justify-end gap-2 border-t border-[#e9dfcd] pt-4">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#6f6453] transition hover:bg-[#efe7d8] hover:text-[#3d362b]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-forest px-5 py-2.5 text-sm font-semibold text-[#fbf7ec] shadow-sm transition hover:bg-[#2c4e3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest/40 focus-visible:ring-offset-2"
+                >
+                  Save changes
                 </button>
               </div>
             </form>

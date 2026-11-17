@@ -200,6 +200,17 @@ export function addPerson(
   commit([...current, person]);
 }
 
+export function renamePerson(personId: string, name: string): void {
+  const trimmed = name.trim().slice(0, 80);
+  if (!trimmed) return;
+
+  commit(
+    getSnapshot().map((person) =>
+      person.id === personId ? { ...person, name: trimmed } : person,
+    ),
+  );
+}
+
 export function removePerson(personId: string): void {
   commit(
     getSnapshot()
