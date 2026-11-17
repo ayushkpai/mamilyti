@@ -313,17 +313,6 @@ export default function PeopleBoard() {
     if (people.length > 0) {
       const target =
         relativeId || people[people.length - 1]?.id || undefined;
-      const targetPerson = target ? peopleById.get(target) : undefined;
-
-      if (
-        relationship === "parent" &&
-        targetPerson &&
-        targetPerson.parentIds.length >= 2
-      ) {
-        setError(`${targetPerson.name} already has two parents recorded.`);
-        return;
-      }
-
       addPerson(trimmed, target, relationship);
     } else {
       addPerson(trimmed);
@@ -569,7 +558,7 @@ export default function PeopleBoard() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e9dfcd] bg-white/45 px-4 py-2.5 text-[11px] text-[#8a7d68]">
               <span className="inline-flex items-center gap-1.5">
                 <HeartIcon className="h-2.5 w-2.5 text-[#b3674f]" />
-                Add a child or partner to grow the branches.
+                Add a child, partner, or parent to grow the branches.
               </span>
               <span className="text-[#a29580]">
                 {layout.units.length} cards on the tree

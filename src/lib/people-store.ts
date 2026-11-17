@@ -159,11 +159,15 @@ export function addPerson(
           : existing,
       );
     } else if (relationship === "parent") {
-      const knownParents = relative.parentIds.filter((parentId) =>
-        current.some((existing) => existing.id === parentId),
-      );
-      const existingParent =
-        knownParents.length === 1 ? knownParents[0] : undefined;
+      // A person can have more than two parents. Treat every existing parent
+      // as a co-parent so the new parent stays in the same row above the child.
+      const knownParents = [
+        ...new Set(
+          relative.parentIds.filter((parentId) =>
+            current.some((existing) => existing.id === parentId),
+          ),
+        ),
+      ];
 
       current = current.map((existing) => {
         if (existing.id === relative.id) {
@@ -172,7 +176,7 @@ export function addPerson(
             parentIds: [...new Set([...existing.parentIds, person.id])],
           };
         }
-        if (existingParent && existing.id === existingParent) {
+        if (knownParents.includes(existing.id)) {
           return {
             ...existing,
             partnerIds: [...new Set([...existing.partnerIds, person.id])],
@@ -181,8 +185,8 @@ export function addPerson(
         return existing;
       });
 
-      if (existingParent) {
-        person.partnerIds = [existingParent];
+      if (knownParents.length > 0) {
+        person.partnerIds = knownParents;
       }
     } else {
       const parentIds = new Set([relative.id]);
